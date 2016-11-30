@@ -1,8 +1,10 @@
 /***************************************************************************
 
     file                 : bt.cpp
-    created              : Fri Nov 11 18:02:25 PST 2016
-    copyright            : (C) 2002 rex
+    created              : Wed Jan 8 18:31:16 CET 2003
+    copyright            : (C) 2002-2004 Bernhard Wymann
+    email                : berniw@bluewin.ch
+    version              : $Id: bt.cpp,v 1.5.2.2 2008/11/09 17:50:19 berniw Exp $
 
  ***************************************************************************/
 
@@ -19,155 +21,117 @@
 #include <windows.h>
 #endif
 
-#include <iomanip>
-#include <iostream>
-#include <fstream>
 #include <stdio.h>
-#include <stdlib.h> 
-#include <string>
-#include <string.h> 
+#include <stdlib.h>
 #include <math.h>
 
-#include <tgf.h> 
-#include <track.h> 
-#include <car.h> 
-#include <raceman.h> 
+#include <tgf.h>
+#include <track.h>
+#include <car.h>
+#include <raceman.h>
 #include <robottools.h>
 #include <robot.h>
 
-static tTrack	*curTrack;
+#include "driver.h"
 
-using namespace std;
+#define NBBOTS 10
 
-static void initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSituation *s); 
-static void newrace(int index, tCarElt* car, tSituation *s); 
-static void drive(int index, tCarElt* car, tSituation *s); 
-static void endrace(int index, tCarElt *car, tSituation *s);
+static const char* botname[NBBOTS] = {
+	"bt 1", "bt 2", "bt 3", "bt 4", "bt 5",
+	"bt 6", "bt 7", "bt 8", "bt 9", "bt 10"
+};
+
+static const char* botdesc[NBBOTS] = {
+	"bt 1", "bt 2", "bt 3", "bt 4", "bt 5",
+	"bt 6", "bt 7", "bt 8", "bt 9", "bt 10"
+};
+
+static Driver *driver[NBBOTS];
+
+static void initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSituation *s);
+static void newRace(int index, tCarElt* car, tSituation *s);
+static void drive(int index, tCarElt* car, tSituation *s);
+static int pitcmd(int index, tCarElt* car, tSituation *s);
 static void shutdown(int index);
-static int  InitFuncPt(int index, void *pt); 
-
-static string sensor_path = "/home/yzt/workspace/torcs-data/sensor/";
-static const int COUNT_BEFORE_SAVE = 100;
-static int drive_count = 0;
-
-static const int NUM_SENSOR_VALS = 4;
-static ofstream sensor_output_file;
+static int InitFuncPt(int index, void *pt);
+static void endRace(int index, tCarElt *car, tSituation *s);
 
 
-/* 
- * Module entry point  
- */
-extern "C" int 
-bt(tModInfo *modInfo) 
+// Module entry point.
+extern "C" int bt(tModInfo *modInfo)
 {
-    memset(modInfo, 0, 10*sizeof(tModInfo));
+	int i;
+	
+	// Clear all structures.
+	memset(modInfo, 0, 10*sizeof(tModInfo));
 
-    modInfo->name    = strdup("bt");		/* name of the module (short) */
-    modInfo->desc    = strdup("");	/* description of the module (can be long) */
-    modInfo->fctInit = InitFuncPt;		/* init function */
-    modInfo->gfId    = ROB_IDENT;		/* supported framework version */
-    modInfo->index   = 1;
-
-    return 0; 
-} 
-
-/* Module interface initialization. */
-static int 
-InitFuncPt(int index, void *pt) 
-{ 
-    tRobotItf *itf  = (tRobotItf *)pt; 
-
-    itf->rbNewTrack = initTrack; /* Give the robot the track view called */ 
-				 /* for every track change or new race */ 
-    itf->rbNewRace  = newrace; 	 /* Start a new race */
-    itf->rbDrive    = drive;	 /* Drive during race */
-    itf->rbPitCmd   = NULL;
-    itf->rbEndRace  = endrace;	 /* End of the current race */
-    itf->rbShutdown = shutdown;	 /* Called before the module is unloaded */
-    itf->index      = index; 	 /* Index used if multiple interfaces */
-    return 0; 
-} 
-
-/* Called for every track change or new race. */
-static void  
-initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSituation *s) 
-{ 
-    curTrack = track;
-    *carParmHandle = NULL; 
-} 
-
-/* Start a new race. */
-static void  
-newrace(int index, tCarElt* car, tSituation *s) 
-{ 
-  string fname = sensor_path + "try.txt";
-  sensor_output_file.open(fname.c_str(), fstream::trunc | fstream::out);
-  sensor_output_file << "";
-  sensor_output_file.close();
-  sensor_output_file.open(fname.c_str(), fstream::app);
-} 
-
-static void save(double* vals, int num_vals) {
-  sensor_output_file << fixed;
-  for (int i = 0; i < num_vals; i++) {
-    sensor_output_file << vals[i] << setprecision(4) << " "; 
-  }
-  sensor_output_file << endl;
+	for (i = 0; i < NBBOTS; i++) {
+		modInfo[i].name    = strdup(botname[i]);	// name of the module (short).
+		modInfo[i].desc    = strdup(botdesc[i]);	// Description of the module (can be long).
+		modInfo[i].fctInit = InitFuncPt;			// Init function.
+		modInfo[i].gfId    = ROB_IDENT;				// Supported framework version.
+		modInfo[i].index   = i;						// Indices from 0 to 9.
+	}
+	return 0;
 }
 
-/* Drive during race. */
-static void  
-drive(int index, tCarElt* car, tSituation *s) 
-{ 
-    memset((void *)&car->ctrl, 0, sizeof(tCarCtrl)); 
 
-    float angle;
-    const float SC = 1.0;
+// Module interface initialization.
+static int InitFuncPt(int index, void *pt)
+{
+	tRobotItf *itf = (tRobotItf *)pt;
 
-    angle = RtTrackSideTgAngleL(&(car->_trkPos)) - car->_yaw;
-    NORM_PI_PI(angle); // put the angle back in the range from -PI to PI
-    angle -= SC*car->_trkPos.toMiddle/car->_trkPos.seg->width;
-
-    // set up the values to return
-    car->ctrl.steer = angle / car->_steerLock;
-    car->ctrl.gear = 1; // first gear
-    car->ctrl.accelCmd = 0.3; // 30% accelerator pedal
-    car->ctrl.brakeCmd = 0.0; // no brakes
-    /*  
-     * add the driving code here to modify the 
-     * car->_steerCmd 
-     * car->_accelCmd 
-     * car->_brakeCmd 
-     * car->_gearCmd 
-     * car->_clutchCmd 
-     */ 
-    
-    if (drive_count == COUNT_BEFORE_SAVE) {
-      printf("H speedX = %f\n", car->_speed_x);
-      printf("H speedY = %f\n", car->_speed_y);
-      printf("H accelX = %f\n", car->_accel_x);
-      printf("H accelY = %f\n", car->_accel_y);
-
-      double d[NUM_SENSOR_VALS] = {car->_speed_x, car->_speed_y, car->_accel_x, car->_accel_y};
-      save(d, NUM_SENSOR_VALS);
-      drive_count = 0;
-    }
-    else {
-      drive_count++;
-    }
+	// Create robot instance for index.
+	driver[index] = new Driver(index);
+	itf->rbNewTrack = initTrack;	// Give the robot the track view called.
+	itf->rbNewRace  = newRace;		// Start a new race.
+	itf->rbDrive    = drive;		// Drive during race.
+	itf->rbPitCmd   = pitcmd;		// Pit commands.
+	itf->rbEndRace  = endRace;		// End of the current race.
+	itf->rbShutdown = shutdown;		// Called before the module is unloaded.
+	itf->index      = index;		// Index used if multiple interfaces.
+	return 0;
 }
 
-/* End of the current race */
-static void
-endrace(int index, tCarElt *car, tSituation *s)
+
+// Called for every track change or new race.
+static void initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSituation *s)
 {
+	driver[index]->initTrack(track, carHandle, carParmHandle, s);
 }
 
-/* Called before the module is unloaded */
-static void
-shutdown(int index)
+
+// Start a new race.
+static void newRace(int index, tCarElt* car, tSituation *s)
 {
-  sensor_output_file.close();
-  cout << "ENDD" << endl;
+	driver[index]->newRace(car, s);
+}
+
+
+// Drive during race.
+static void drive(int index, tCarElt* car, tSituation *s)
+{
+	driver[index]->drive(s);
+}
+
+
+// Pitstop callback.
+static int pitcmd(int index, tCarElt* car, tSituation *s)
+{
+	return driver[index]->pitCommand(s);
+}
+
+
+// End of the current race.
+static void endRace(int index, tCarElt *car, tSituation *s)
+{
+	driver[index]->endRace(s);
+}
+
+
+// Called before the module is unloaded.
+static void shutdown(int index)
+{
+	delete driver[index];
 }
 

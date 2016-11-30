@@ -297,7 +297,7 @@ namespace olethros {
             tTrackSeg *s = track->seg;
             for (int i=0; i<track->nseg; i++, s=s->next) {
                 float u = getAllowedSpeed(s);
-                if (isnan(u) || u>10000.0) {
+                if (std::isnan(u) || u>10000.0) {
                     u = 10000.0;
                 }
                 max_speed_list[s->id] = u;
@@ -465,7 +465,7 @@ namespace olethros {
             //printf ("R: :%1.f %1.f %1.f\n", ideal_radius[currentseg->id], EstimateRadius2(currentseg), currentseg->radius);
             if (currentseg->type == TR_STR) {
                 lastsegtype = TR_STR;
-                if (isnan(ideal_radius[currentseg->id]) || 
+                if (std::isnan(ideal_radius[currentseg->id]) || 
                     ideal_radius[currentseg->id]>10000) {
                     ideal_radius[currentseg->id] = 10000;
                 }
@@ -488,7 +488,7 @@ namespace olethros {
                 }
                 radius[currentseg->id] = (currentseg->radius + currentseg->width/2.0)/lastturnarc;
 
-                if (isnan(ideal_radius[currentseg->id]) || 
+                if (std::isnan(ideal_radius[currentseg->id]) || 
                     ideal_radius[currentseg->id]>10000.0f) {
                     ideal_radius[currentseg->id] = 10000.0f;
                 }

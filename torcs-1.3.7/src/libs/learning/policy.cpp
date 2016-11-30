@@ -435,7 +435,7 @@ int DiscretePolicy::SelectAction (int s, real r, int forced_a)
 					// if P[][] remains unchanged between updates.
 					// -- removed because it doesn't work! --
 					//P[i][j] += 0.01*delta * e[i][j] * (1.-P[i][j]);
-					if ((fabs (Q[i][j])>1000.0)||(isnan(Q[i][j]))) {
+					if ((fabs (Q[i][j])>1000.0)||(std::isnan(Q[i][j]))) {
 						printf ("u: %d %d %f %f\n", i,j,Q[i][j], ad * e[i][j]);
 					}
 					
@@ -512,7 +512,7 @@ void DiscretePolicy::loadFile (char* f)
 	for (i=0; i<n_states; i++) {
 		fread((void *) Q[i], sizeof(real), n_actions, fh);
 		for (j=0; j<n_actions; j++) {
-			if ((fabs (Q[i][j])>100.0)||(isnan(Q[i][j]))) {
+			if ((fabs (Q[i][j])>100.0)||(std::isnan(Q[i][j]))) {
 				printf ("l: %d %d %f\n", i,j,Q[i][j]);
 				Q[i][j] = 0.0;
 			}
@@ -564,7 +564,7 @@ void DiscretePolicy::saveFile (char* f) {
 	for (int i=0; i<n_states; i++) {
 		fwrite((void *) Q[i], sizeof(real), n_actions, fh);
 		for (int j=0; j<n_actions; j++) {
-			if ((fabs (Q[i][j])>100.0)||(isnan(Q[i][j]))) {
+			if ((fabs (Q[i][j])>100.0)||(std::isnan(Q[i][j]))) {
 				printf ("s: %d %d %f\n", i,j,Q[i][j]);
 			}
 		}
