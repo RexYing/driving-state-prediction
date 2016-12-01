@@ -23,8 +23,16 @@
     @version	$Id: raceengine.cpp,v 1.19.2.23 2014/08/05 23:05:06 berniw Exp $
 */
 
+#include <ctime>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string>
+
+#include <png.h>
+
 #include <tgfclient.h>
 #include <robot.h>
 #include <raceman.h>
@@ -611,9 +619,64 @@ ReRaceRules(tCarElt *car)
 }
 
 
-static void
-ReOneStep(double deltaTimeIncrement)
+extern bool toggle_export;
+extern std::string img_export_path;
+extern uint8_t* imgdata_ptr;
+const int IMG_WIDTH = 640;
+const int IMG_HEIGHT = 480;
+const int IMG_SIZE = IMG_WIDTH * IMG_HEIGHT * 3;
+
+const int COUNT_BEFORE_SAVE = 100;
+int drive_count = 0;
+
+static void saveFrame(uint8_t* imgdata, int size)
 {
+  std::time_t curr_time = std::time(nullptr);
+  std::stringstream ss;
+  ss << curr_time;
+  std::string time_str = ss.str();
+  std::string fname = img_export_path + time_str + ".txt";
+
+  std::ofstream img_output_file;
+  img_output_file.open(fname.c_str(), std::fstream::trunc | std::fstream::out);
+
+  for (int i = 0; i < size; i++) {
+    img_output_file << imgdata[i] << " ";
+  }
+  
+  img_output_file.close();
+}
+
+static void ReOneStep(double deltaTimeIncrement)
+{
+  std::cout << "HERE 1" << std::endl;
+  
+  if (toggle_export)
+  {
+    if (drive_count == COUNT_BEFORE_SAVE)
+    {
+      drive_count=0;
+
+      glReadPixels(0, 0, IMG_WIDTH, IMG_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)imgdata_ptr);
+
+    std::cout << "HERE 2" << std::endl;
+      /*
+       * TODO: take into account the time for saving data
+      while (*pwritten == 1)
+        usleep(1);
+      */
+
+      double t = GfTimeClock();
+      if ((t - ReInfo->_reCurTime) > 30*RCM_MAX_DT_SIMU)
+        ReInfo->_reCurTime = t - RCM_MAX_DT_SIMU;
+
+      saveFrame(imgdata_ptr, IMG_SIZE);
+    }
+    else {
+      drive_count++;
+    }
+  }
+
 	int i;
 	tRobotItf *robot;
 	tSituation *s = ReInfo->s;

@@ -17,7 +17,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <iostream>
 #include <stdlib.h>
+#include <string>
 
 #include <GL/glut.h>
 
@@ -28,6 +30,19 @@
 #include <raceinit.h>
 
 extern bool bKeepModules;
+
+std::string img_export_path;
+// Only true when --img_export_path is defined
+bool toggle_export = false;
+/*
+ * Define exported data.
+ */
+const int COUNT_BEFORE_SAVE = 100;
+int drive_count = 0;
+const int IMG_WIDTH = 640;
+const int IMG_HEIGHT = 480;
+uint8_t imgdata[IMG_WIDTH * IMG_HEIGHT * 3];
+uint8_t* imgdata_ptr = imgdata;
 
 static void
 init_args(int argc, char **argv, const char **raceconfig)
@@ -94,7 +109,24 @@ init_args(int argc, char **argv, const char **raceconfig)
 				printf("Please specify a race configuration xml when using -r\n");
 				exit(1);
 			}
-		} else {
+		} 
+    else if (strncmp(argv[i], "-img_export_path", 2) == 0) {
+      i++;
+      toggle_export = true;
+
+			if(i < argc) {
+				buf = (char *)malloc(strlen(argv[i]) + 2);
+				sprintf(buf, "%s/", argv[i]);
+				SetDataDir(buf);
+				i++;
+        img_export_path = buf;
+        std::cout << "Images will be exported to " << img_export_path << std::endl;
+
+        imgdata_ptr[0] = 1;
+				free(buf);
+			}
+    }
+    else {
 			i++;		/* ignore bad args */
 		}
 	}
@@ -103,6 +135,7 @@ init_args(int argc, char **argv, const char **raceconfig)
 	GfuiMouseSetHWPresent(); /* allow the hardware cursor (freeglut pb ?) */
 #endif
 }
+
 
 /*
  * Function

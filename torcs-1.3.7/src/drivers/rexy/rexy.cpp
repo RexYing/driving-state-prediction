@@ -47,11 +47,12 @@ static void shutdown(int index);
 static int  InitFuncPt(int index, void *pt); 
 
 static std::string sensor_path = "/home/rex/workspace/torcs-data/sensor/";
-static const int COUNT_BEFORE_SAVE = 100;
-static int drive_count = 0;
 
 static const int NUM_SENSOR_VALS = 4;
 static std::ofstream sensor_output_file;
+
+const int COUNT_BEFORE_SAVE = 100;
+int drive_count = 0;
 
 /* 
  * Module entry point  
