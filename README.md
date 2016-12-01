@@ -1,6 +1,7 @@
 # Intro
 
 Input: video / image sequences
+
 Output: sensor value predictions
 
 The program is written with Python 2.7

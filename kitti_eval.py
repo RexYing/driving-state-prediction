@@ -29,7 +29,11 @@ tf.app.flags.DEFINE_integer('num_examples', 300,
 tf.app.flags.DEFINE_boolean('run_once', False,
                              """Whether to run eval only once.""")
 
-def eval_once(saver, summary_writer, sensor_value_op, summary_op):
+def to_string_float_list_with_prec(l, num_digits):
+  format_str = "{0:0." + str(num_digits) + "f}"
+  return [format_str.format(float(i)) for i in l]
+
+def eval_once(saver, summary_writer, sensor_value_op, label_op, summary_op):
     """Run Eval once.
     Args:
       saver: Saver.
@@ -65,18 +69,25 @@ def eval_once(saver, summary_writer, sensor_value_op, summary_op):
       step = 0
       
       diff = 0
+
+      # Other operations to output
+      sensor_value_diff_op = tf.abs(tf.sub(sensor_value_op, label_op))
+      sensor_value_percent_diff_op = tf.reduce_mean(tf.div(sensor_value_diff_op, label_op))
+
       while step < num_iter and not coord.should_stop():
-        predictions = sess.run([sensor_value_op])
-        print('prediction:  ' + str(predictions))
-        diff += np.sum(predictions)
+        sensor_value, label, percent_err = sess.run([sensor_value_op, label_op, sensor_value_percent_diff_op])
+        print('prediction:  ' + ' '.join(to_string_float_list_with_prec(sensor_value, 2)))
+        print('actual:  ' + ' '.join(to_string_float_list_with_prec(label, 2)))
+        print('percent_err:  ' + str(percent_err))
+        diff += np.sum(percent_err)
         step += 1
       # Compute error.
       precision = diff / num_iter
-      print('%s: PercentageErr @ 1 = %.3f' % (datetime.now(), precision))
+      print('%s: percentage_err @ 1 = %.3f' % (datetime.now(), precision))
 
       summary = tf.Summary()
       summary.ParseFromString(sess.run(summary_op))
-      summary.value.add(tag='PercentageErr @ 1', simple_value=precision)
+      summary.value.add(tag='percentage_err @ 1', simple_value=precision)
       summary_writer.add_summary(summary, global_step)
     except Exception as e: 
       coord.request_stop(e)
@@ -92,8 +103,6 @@ def evaluate():
     images, labels = driving_input.kitti_raw_input(FLAGS.test_root_dir, 1, FLAGS.batch_size)
 
     inferred = imgseqCNN.inference(images)
-    sensor_value_diff_op = tf.reduce_mean(tf.abs(tf.sub(inferred, labels)))
-    sensor_value_percent_diff_op = tf.div(sensor_value_diff_op, labels)
 
     # Restore the moving average version of the learned
     # variables for eval.
@@ -108,7 +117,7 @@ def evaluate():
     summary_writer = tf.train.SummaryWriter(FLAGS.eval_dir, g)
 
     while True:
-      eval_once(saver, summary_writer, sensor_value_op, summary_op)
+      eval_once(saver, summary_writer, inferred, labels, summary_op)
       if FLAGS.run_once:
         break
       time.sleep(FLAGS.eval_interval_secs)

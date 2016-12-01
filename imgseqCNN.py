@@ -28,6 +28,8 @@ NUM_EPOCHS_PER_DECAY = 50.0      # Epochs after which learning rate decays.
 LEARNING_RATE_DECAY_FACTOR = 0.1  # Learning rate decay factor.
 INITIAL_LEARNING_RATE = 0.01       # Initial learning rate.
 
+KEEP_PROB = 0.5
+
 
 def _variable_on_cpu(name, shape, initializer):
     """Helper to create a Variable stored on CPU memory.
@@ -115,11 +117,11 @@ def inference(images):
   #
 
   # conv1
-  num_channels = [1, 48, 64, 64, 128]
+  num_channels = [1, 32, 48, 64, 128]
   with tf.variable_scope('conv1') as scope:
     kernel = _variable_with_weight_decay(
         'weights', shape=[num_frames, 7, 7, num_channels[0], num_channels[1]], stddev=5e-2, wd=0.0)
-    conv = tf.nn.conv3d(images, kernel, strides=[1, 1, 2, 4, 1], padding='SAME')
+    conv = tf.nn.conv3d(images, kernel, strides=[1, 1, 1, 2, 1], padding='SAME')
     biases = _variable_on_cpu('biases', [num_channels[1]], tf.constant_initializer(0.0))
     bias = tf.nn.bias_add(conv, biases)
     conv1 = tf.nn.relu(bias, name=scope.name)
@@ -135,7 +137,7 @@ def inference(images):
     offset1  = _variable_on_cpu('offset1', batch_mean.get_shape(), tf.constant_initializer(0.0))
     scale1  = _variable_on_cpu('scale1', batch_mean.get_shape(), tf.constant_initializer(1.0))
     norm1 = tf.nn.batch_normalization(pool1, batch_mean, batch_var, offset1, scale1, VAR_EPS,
-            name='batch_norm1')
+            name=scope.name + '/batch_norm1')
     #norm1 = pool1
     print(norm1)
 
@@ -155,8 +157,13 @@ def inference(images):
     print(pool2)
 
     # norm2
+    batch_mean, batch_var = tf.nn.moments(pool2, [0])
+    offset2  = _variable_on_cpu('offset2', batch_mean.get_shape(), tf.constant_initializer(0.0))
+    scale2  = _variable_on_cpu('scale2', batch_mean.get_shape(), tf.constant_initializer(1.0))
+    norm2 = tf.nn.batch_normalization(pool2, batch_mean, batch_var, offset2, scale2, VAR_EPS,
+            name=scope.name + '/batch_norm2')
     #norm2 = tf.nn.lrn(conv2, 4, bias=1.0, alpha=0.001/9.0, beta=0.75, name='norm2')
-    norm2 = pool2
+    #norm2 = pool2
   
   # conv3
   with tf.variable_scope('conv3') as scope:
@@ -170,11 +177,15 @@ def inference(images):
 
     pool3 = tf.nn.max_pool3d(conv3, ksize=[1, 1, 3, 3, 1], strides=[1, 1, 2, 2, 1], padding='SAME',
             name='pool3')
-    print(pool3)
 
     # norm3
     #norm3 = tf.nn.lrn(conv3, 4, bias=1.0, alpha=0.001/9.0, beta=0.75, name='norm3')
-    norm3 = pool3
+    batch_mean, batch_var = tf.nn.moments(pool3, [0])
+    offset3  = _variable_on_cpu('offset3', batch_mean.get_shape(), tf.constant_initializer(0.0))
+    scale3  = _variable_on_cpu('scale3', batch_mean.get_shape(), tf.constant_initializer(1.0))
+    norm3 = tf.nn.batch_normalization(pool3, batch_mean, batch_var, offset3, scale3, VAR_EPS,
+            name=scope.name + '/batch_norm3')
+    #norm3 = pool3
    
   # conv4
   with tf.variable_scope('conv4') as scope:
@@ -193,7 +204,14 @@ def inference(images):
 
     # norm4
     #norm4 = tf.nn.lrn(conv4, 4, bias=1.0, alpha=0.001/9.0, beta=0.75, name='norm4')
+    batch_mean, batch_var = tf.nn.moments(pool4, [0])
+    offset4  = _variable_on_cpu('offset4', batch_mean.get_shape(), tf.constant_initializer(0.0))
+    scale4  = _variable_on_cpu('scale4', batch_mean.get_shape(), tf.constant_initializer(1.0))
+    norm4 = tf.nn.batch_normalization(pool4, batch_mean, batch_var, offset4, scale4, VAR_EPS,
+            name=scope.name + '/batch_norm4')
     norm4 = pool4
+
+    norm4_drop = tf.nn.dropout(h_fc4, KEEP_PROB)
 
   with tf.variable_scope('linear') as scope:
     reshape = tf.reshape(norm4, [FLAGS.batch_size, -1])
@@ -219,9 +237,28 @@ def loss(inferred_values, labels):
   """
   # Calculate the average cross entropy loss across the batch.
   l2_loss = tf.nn.l2_loss(tf.sub(inferred_values, labels), name='l2_per_frame')
-  print('l2 loss ' + str(l2_loss))
   l2_loss_mean = tf.reduce_mean(l2_loss, name='l2_mean_loss')
-  print('l2 loss mean' + str(l2_loss_mean))
+  tf.add_to_collection('losses', l2_loss_mean)
+
+  # The total loss is defined as the l2 diff plus all of the weight decay terms (L2 loss).
+  return tf.add_n(tf.get_collection('losses'), name='total_loss')
+
+def loss_ratio(inferred_values, labels, eps):
+  """Add L2Loss to all the trainable variables.
+    The loss is the difference normalized by the sum of label value and eps.
+    Add summary for "Loss" and "Loss/avg".
+
+  Args:
+    inferred_values: Sensor values output from inference().
+    labels: Labels. 1-D tensor of shape [batch_size]
+  Returns:
+    Loss tensor of type float.
+  """
+  # Calculate the average cross entropy loss across the batch.
+  
+  diff = tf.div(tf.sub(inferred_values, labels), labels)
+  l2_loss = tf.nn.l2_loss(diff, name='l2_per_frame')
+  l2_loss_mean = tf.reduce_mean(l2_loss, name='l2_mean_loss')
   tf.add_to_collection('losses', l2_loss_mean)
 
   # The total loss is defined as the l2 diff plus all of the weight decay terms (L2 loss).
@@ -234,9 +271,7 @@ def _add_loss_summaries(total_loss):
     visualizing the performance of the network.
   Args:
     total_loss: Total loss from loss().
-  Returns:
-    loss_averages_op: op for generating moving averages of losses.
-  """
+  Returns: loss_averages_op: op for generating moving averages of losses.  """
   # Compute the moving average of all individual losses and the total loss.
   loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
   losses = tf.get_collection('losses')

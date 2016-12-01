@@ -15,8 +15,8 @@ KITTI_RAW_IMAGE_WIDTH = 1242
 NUM_INPUT_CHANNELS = 3
 NUM_SENSOR_VALS = 30
 
-INPUT_IMAGE_HEIGHT = KITTI_RAW_IMAGE_HEIGHT
-INPUT_IMAGE_WIDTH = KITTI_RAW_IMAGE_WIDTH
+INPUT_IMAGE_HEIGHT = KITTI_RAW_IMAGE_HEIGHT // 2
+INPUT_IMAGE_WIDTH = KITTI_RAW_IMAGE_WIDTH // 2
 
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 100
 NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 100
@@ -201,10 +201,10 @@ def kitti_raw_input(root_dir, num_channels, batch_size):
   drive_record = read_kitti_raw_data(sensor_filename_queue, image_filename_queues)
    
   image = tf.cast(drive_record.imgseq, tf.float32)
-  # image = tf.image.resize_images(
-  #         image, 
-  #         [INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH],
-  #         tf.image.ResizeMethod.AREA)
+  image = tf.image.resize_images(
+          image, 
+          [INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH],
+          tf.image.ResizeMethod.AREA)
 
   image.set_shape([num_consec_frames, INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH, num_channels])
   
