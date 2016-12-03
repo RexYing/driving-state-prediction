@@ -32,6 +32,7 @@
 extern bool bKeepModules;
 
 std::string img_export_path;
+std::string sensor_export_path;
 // Only true when --img_export_path is defined
 bool toggle_export = false;
 /*
@@ -122,7 +123,21 @@ init_args(int argc, char **argv, const char **raceconfig)
         img_export_path = buf;
         std::cout << "Images will be exported to " << img_export_path << std::endl;
 
-        imgdata_ptr[0] = 1;
+				free(buf);
+			}
+    }
+    else if (strncmp(argv[i], "-sensor_export_path", 2) == 0) {
+      i++;
+      toggle_export = true;
+
+			if(i < argc) {
+				buf = (char *)malloc(strlen(argv[i]) + 2);
+				sprintf(buf, "%s/", argv[i]);
+				SetDataDir(buf);
+				i++;
+        img_export_path = buf;
+        std::cout << "Sensor data will be exported to " << sensor_export_path << std::endl;
+
 				free(buf);
 			}
     }

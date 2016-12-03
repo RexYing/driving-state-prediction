@@ -46,7 +46,7 @@ static void endrace(int index, tCarElt *car, tSituation *s);
 static void shutdown(int index);
 static int  InitFuncPt(int index, void *pt); 
 
-static std::string sensor_path = "/home/rex/workspace/torcs-data/sensor/";
+extern std::string sensor_export_path;
 
 static const int NUM_SENSOR_VALS = 4;
 static std::ofstream sensor_output_file;
@@ -104,7 +104,7 @@ newrace(int index, tCarElt* car, tSituation *s)
   std::stringstream ss;
   ss << curr_time;
   std::string time_str = ss.str();
-  std::string fname = sensor_path + time_str + ".txt";
+  std::string fname = sensor_export_path + time_str + ".txt";
   sensor_output_file.open(fname.c_str(), std::fstream::trunc | std::fstream::out);
   sensor_output_file << "";
   sensor_output_file.close();
