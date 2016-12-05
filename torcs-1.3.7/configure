@@ -5585,7 +5585,7 @@ $as_echo "libraries $x_libraries, headers $x_includes" >&6; }
 fi
 
 #CFLAGS="-ansi -Wall -Wstrict-prototypes -W"
-ADDCFLAGS="-Wall -fPIC -fno-strict-aliasing"
+ADDCFLAGS="-std=c++11 -Wall -fPIC -fno-strict-aliasing"
 # Check whether --enable-debug was given.
 if test "${enable_debug+set}" = set; then :
   enableval=$enable_debug; ADDCFLAGS="$ADDCFLAGS -g -DDEBUG -DDEBUG_OUT"

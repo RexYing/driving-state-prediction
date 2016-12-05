@@ -60,7 +60,7 @@ LDFLAGS =  -L${EXPORTBASE}/lib @LDFLAGS@ -L/usr/lib
 #INCFLAGS =  -I${EXPORTBASE}/include -I/usr/include -I/usr/local/include
 INCFLAGS =  -I${EXPORTBASE}/include -I${TORCS_BASE}
 
-CPP = @CPP@ @CPPFLAGS@ -M -D__DEPEND__
+CPP = @CXX@ @CPPFLAGS@ -M -D__DEPEND__ -std=c++11
 
 PACKAGE = @PACKAGE@
 VERSION = @VERSION@

@@ -32,9 +32,11 @@
 extern bool bKeepModules;
 
 std::string img_export_path;
-std::string sensor_export_path;
+std::string sensor_export_path = "/home/rex/workspace/torcs-data/sensor/";
 // Only true when --img_export_path is defined
 bool toggle_export = false;
+int trythis = 10;
+
 /*
  * Define exported data.
  */
@@ -84,7 +86,38 @@ init_args(int argc, char **argv, const char **raceconfig)
 				free(buf);
 				i++;
 			}
-		} else if(strncmp(argv[i], "-s", 2) == 0) {
+		} 
+    else if (strncmp(argv[i], "-img_export_path", 2) == 0) 
+    {
+      i++;
+      toggle_export = true;
+
+			if(i < argc) {
+				buf = (char *)malloc(strlen(argv[i]) + 2);
+				sprintf(buf, "%s/", argv[i]);
+				i++;
+        img_export_path = buf;
+        std::cout << "Images will be exported to " << img_export_path << std::endl;
+
+				free(buf);
+			}
+    }
+    else if (strncmp(argv[i], "-sensor_export_path", 2) == 0) 
+    {
+      i++;
+      toggle_export = true;
+
+			if(i < argc) {
+				buf = (char *)malloc(strlen(argv[i]) + 2);
+				sprintf(buf, "%s/", argv[i]);
+				i++;
+        sensor_export_path = buf;
+        std::cout << "Sensor data will be exported to " << sensor_export_path << std::endl;
+
+				free(buf);
+			}
+    }
+    else if(strncmp(argv[i], "-s", 2) == 0) {
 			i++;
 			SetSingleTextureMode();
 		} else if(strncmp(argv[i], "-k", 2) == 0) {
@@ -111,37 +144,9 @@ init_args(int argc, char **argv, const char **raceconfig)
 				exit(1);
 			}
 		} 
-    else if (strncmp(argv[i], "-img_export_path", 2) == 0) {
-      i++;
-      toggle_export = true;
-
-			if(i < argc) {
-				buf = (char *)malloc(strlen(argv[i]) + 2);
-				sprintf(buf, "%s/", argv[i]);
-				SetDataDir(buf);
-				i++;
-        img_export_path = buf;
-        std::cout << "Images will be exported to " << img_export_path << std::endl;
-
-				free(buf);
-			}
-    }
-    else if (strncmp(argv[i], "-sensor_export_path", 2) == 0) {
-      i++;
-      toggle_export = true;
-
-			if(i < argc) {
-				buf = (char *)malloc(strlen(argv[i]) + 2);
-				sprintf(buf, "%s/", argv[i]);
-				SetDataDir(buf);
-				i++;
-        img_export_path = buf;
-        std::cout << "Sensor data will be exported to " << sensor_export_path << std::endl;
-
-				free(buf);
-			}
-    }
+    
     else {
+      printf("IGNORE %s\n", argv[i]);
 			i++;		/* ignore bad args */
 		}
 	}

@@ -29,6 +29,7 @@
 #include <string.h> 
 #include <math.h>
 #include <ctime>
+#include <chrono>
 
 #include <tgf.h> 
 #include <track.h> 
@@ -46,12 +47,14 @@ static void endrace(int index, tCarElt *car, tSituation *s);
 static void shutdown(int index);
 static int  InitFuncPt(int index, void *pt); 
 
-extern std::string sensor_export_path;
-
+extern bool toggle_export;
+extern std::string img_export_path;
+//extern std::string sensor_export_path;
+std::string sensor_export_path = "/home/rex/workspace/torcs-data/sensor/";
 static const int NUM_SENSOR_VALS = 4;
 static std::ofstream sensor_output_file;
 
-const int COUNT_BEFORE_SAVE = 100;
+const int COUNT_BEFORE_SAVE = 20;
 int drive_count = 0;
 
 /* 
@@ -96,15 +99,23 @@ initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSitu
 } 
 
 
+std::string getTimeString()
+{
+  std::time_t curr_time = std::time(nullptr);
+  std::stringstream ss;
+  //ss << curr_time;
+  ss << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  std::string time_str = ss.str();
+  return time_str;
+}
+
+
+
 /* Start a new race. */
 static void  
 newrace(int index, tCarElt* car, tSituation *s) 
 { 
-  std::time_t curr_time = std::time(nullptr);
-  std::stringstream ss;
-  ss << curr_time;
-  std::string time_str = ss.str();
-  std::string fname = sensor_export_path + time_str + ".txt";
+  std::string fname = sensor_export_path + getTimeString() + ".txt";
   sensor_output_file.open(fname.c_str(), std::fstream::trunc | std::fstream::out);
   sensor_output_file << "";
   sensor_output_file.close();
@@ -172,6 +183,7 @@ double desired_speed=60/3.6;
 double keepLR=0.0;   // for three-lane
 
 static void save(double* vals, int num_vals) {
+  sensor_output_file << getTimeString() << " ";
   sensor_output_file << std::fixed;
   for (int i = 0; i < num_vals; i++) {
     sensor_output_file << vals[i] << std::setprecision(4) << " "; 
@@ -216,18 +228,23 @@ static void drive(int index, tCarElt* car, tSituation *s)
     }    
 
     
-    if (drive_count == COUNT_BEFORE_SAVE) {
-      printf("H speedX = %f\n", car->_speed_x);
-      printf("H speedY = %f\n", car->_speed_y);
-      printf("H accelX = %f\n", car->_accel_x);
-      printf("H accelY = %f\n", car->_accel_y);
+    if (toggle_export)
+    {
+      if (drive_count == COUNT_BEFORE_SAVE) {
+        /*
+        printf("H speedX = %f\n", car->_speed_x);
+        printf("H speedY = %f\n", car->_speed_y);
+        printf("H accelX = %f\n", car->_accel_x);
+        printf("H accelY = %f\n", car->_accel_y);
+        */
 
-      double d[NUM_SENSOR_VALS] = {car->_speed_x, car->_speed_y, car->_accel_x, car->_accel_y};
-      save(d, NUM_SENSOR_VALS);
-      drive_count = 0;
-    }
-    else {
-      drive_count++;
+        double d[NUM_SENSOR_VALS] = {car->_speed_x, car->_speed_y, car->_accel_x, car->_accel_y};
+        save(d, NUM_SENSOR_VALS);
+        drive_count = 0;
+      }
+      else {
+        drive_count++;
+      }
     }
 }
 

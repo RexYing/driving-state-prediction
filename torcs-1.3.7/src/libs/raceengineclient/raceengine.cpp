@@ -24,12 +24,14 @@
 */
 
 #include <ctime>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string>
+#include <thread>
 
 #include <png.h>
 
@@ -58,9 +60,7 @@ static void ReRaceRules(tCarElt *car);
 /* Compute Pit stop time */
 static void
 ReUpdtPitTime(tCarElt *car)
-{
-	tSituation *s = ReInfo->s;
-	tReCarInfo *info = &(ReInfo->_reCarInfo[car->index]);
+{ tSituation *s = ReInfo->s; tReCarInfo *info = &(ReInfo->_reCarInfo[car->index]);
 	int i;
 
 	switch (car->_pitStopType) {
@@ -621,36 +621,85 @@ ReRaceRules(tCarElt *car)
 
 extern bool toggle_export;
 extern std::string img_export_path;
+extern std::string sensor_export_path;  // used in drivers
 extern uint8_t* imgdata_ptr;
 const int IMG_WIDTH = 640;
 const int IMG_HEIGHT = 480;
 const int IMG_SIZE = IMG_WIDTH * IMG_HEIGHT * 3;
 
-const int COUNT_BEFORE_SAVE = 100;
+const int COUNT_BEFORE_SAVE = 20;
 int drive_count = 0;
+
+bool save_png_libpng(const char *filename, uint8_t *pixels, int w, int h)
+{
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png)
+        return false;
+
+    png_infop info = png_create_info_struct(png);
+    if (!info) {
+        png_destroy_write_struct(&png, &info);
+        return false;
+    }
+
+    FILE *fp = fopen(filename, "wb");
+    if (!fp) {
+        png_destroy_write_struct(&png, &info);
+        return false;
+    }
+
+    png_init_io(png, fp);
+    png_set_IHDR(png, info, w, h, 8 /* depth */, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+        PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+    png_colorp palette = (png_colorp)png_malloc(png, PNG_MAX_PALETTE_LENGTH * sizeof(png_color));
+    if (!palette) {
+        fclose(fp);
+        png_destroy_write_struct(&png, &info);
+        return false;
+    }
+    png_set_PLTE(png, info, palette, PNG_MAX_PALETTE_LENGTH);
+    png_write_info(png, info);
+    png_set_packing(png);
+
+    png_bytepp rows = (png_bytepp)png_malloc(png, h * sizeof(png_bytep));
+    for (int i = 0; i < h; ++i)
+        rows[i] = (png_bytep)(pixels + (h - i) * w * 3);
+
+    png_write_image(png, rows);
+    png_write_end(png, info);
+    png_free(png, palette);
+    png_destroy_write_struct(&png, &info);
+
+    fclose(fp);
+    delete[] rows;
+    return true;
+}
 
 static void saveFrame(uint8_t* imgdata, int size)
 {
-  std::time_t curr_time = std::time(nullptr);
+  //std::time_t curr_time = std::time(nullptr);
   std::stringstream ss;
-  ss << curr_time;
+  //ss << curr_time;
+  ss << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
   std::string time_str = ss.str();
-  std::string fname = img_export_path + time_str + ".txt";
+  std::string fname = img_export_path + time_str + ".png";
 
+  /*
   std::ofstream img_output_file;
   img_output_file.open(fname.c_str(), std::fstream::trunc | std::fstream::out);
 
   for (int i = 0; i < size; i++) {
     img_output_file << imgdata[i] << " ";
-  }
+  } */
+  save_png_libpng(fname.c_str(), imgdata, IMG_WIDTH, IMG_HEIGHT);
+  //std::thread saver_thread(save_png_libpng, fname.c_str(), imgdata, IMG_WIDTH, IMG_HEIGHT);
+  //saver_thread.detach();
   
-  img_output_file.close();
+  //img_output_file.close();
 }
 
 static void ReOneStep(double deltaTimeIncrement)
 {
-  std::cout << "HERE 1" << std::endl;
-  
   if (toggle_export)
   {
     if (drive_count == COUNT_BEFORE_SAVE)
@@ -659,7 +708,6 @@ static void ReOneStep(double deltaTimeIncrement)
 
       glReadPixels(0, 0, IMG_WIDTH, IMG_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)imgdata_ptr);
 
-    std::cout << "HERE 2" << std::endl;
       /*
        * TODO: take into account the time for saving data
       while (*pwritten == 1)
