@@ -54,12 +54,13 @@ std::string sensor_export_path = "/home/rex/workspace/torcs-data/sensor/";
 static const int NUM_SENSOR_VALS = 4;
 static std::ofstream sensor_output_file;
 
-const int COUNT_BEFORE_SAVE = 20;
-int drive_count = 0;
+static const int COUNT_BEFORE_SAVE = 1;
+static int drive_count = 1;
+
+static long prev_time = 0;
 
 /* 
- * Module entry point  
- */ 
+ * Module entry point  */ 
 extern "C" int rexy(tModInfo *modInfo) 
 {
     memset(modInfo, 0, 10*sizeof(tModInfo));
@@ -99,14 +100,13 @@ initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSitu
 } 
 
 
-std::string getTimeString()
+long getTimeString()
 {
-  std::time_t curr_time = std::time(nullptr);
-  std::stringstream ss;
+  //std::time_t curr_time = std::time(nullptr);
   //ss << curr_time;
-  ss << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-  std::string time_str = ss.str();
-  return time_str;
+  // 0.1s precision
+  long curr_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  return curr_time;
 }
 
 
@@ -115,7 +115,9 @@ std::string getTimeString()
 static void  
 newrace(int index, tCarElt* car, tSituation *s) 
 { 
-  std::string fname = sensor_export_path + getTimeString() + ".txt";
+  std::stringstream ss;
+  ss << sensor_export_path << getTimeString() << ".txt";
+  std::string fname = ss.str();
   sensor_output_file.open(fname.c_str(), std::fstream::trunc | std::fstream::out);
   sensor_output_file << "";
   sensor_output_file.close();
@@ -183,7 +185,15 @@ double desired_speed=60/3.6;
 double keepLR=0.0;   // for three-lane
 
 static void save(double* vals, int num_vals) {
-  sensor_output_file << getTimeString() << " ";
+
+  long curr_time = getTimeString();
+  if (prev_time != 0 && (curr_time - prev_time < 20))
+  {
+    return;
+  }
+  prev_time = curr_time;
+
+  sensor_output_file << curr_time << " ";
   sensor_output_file << std::fixed;
   for (int i = 0; i < num_vals; i++) {
     sensor_output_file << vals[i] << std::setprecision(4) << " "; 
@@ -240,7 +250,7 @@ static void drive(int index, tCarElt* car, tSituation *s)
 
         double d[NUM_SENSOR_VALS] = {car->_speed_x, car->_speed_y, car->_accel_x, car->_accel_y};
         save(d, NUM_SENSOR_VALS);
-        drive_count = 0;
+        drive_count = 1;
       }
       else {
         drive_count++;

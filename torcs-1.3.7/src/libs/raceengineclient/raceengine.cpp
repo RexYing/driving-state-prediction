@@ -627,8 +627,9 @@ const int IMG_WIDTH = 640;
 const int IMG_HEIGHT = 480;
 const int IMG_SIZE = IMG_WIDTH * IMG_HEIGHT * 3;
 
-const int COUNT_BEFORE_SAVE = 20;
-int drive_count = 0;
+// save screen for every COUNT * 0.002 sec (RCM_MAX_DT_SIMU = 0.002)
+static const int COUNT_BEFORE_SAVE = 50; 
+static int drive_count = 1;
 
 bool save_png_libpng(const char *filename, uint8_t *pixels, int w, int h)
 {
@@ -700,11 +701,30 @@ static void saveFrame(uint8_t* imgdata, int size)
 
 static void ReOneStep(double deltaTimeIncrement)
 {
-  if (toggle_export)
+
+	int i;
+	tRobotItf *robot;
+	tSituation *s = ReInfo->s;
+
+	if ((ReInfo->_displayMode != RM_DISP_MODE_NONE) && (ReInfo->_displayMode != RM_DISP_MODE_CONSOLE)) {
+		if (floor(s->currentTime) == -2.0) {
+			ReRaceBigMsgSet("Ready", 1.0);
+		} else if (floor(s->currentTime) == -1.0) {
+			ReRaceBigMsgSet("Set", 1.0);
+		} else if (floor(s->currentTime) == 0.0) {
+			ReRaceBigMsgSet("Go", 1.0);
+		}
+	}
+
+	ReInfo->_reCurTime += deltaTimeIncrement * ReInfo->_reTimeMult; /* "Real" time */
+	s->currentTime += deltaTimeIncrement; /* Simulated time */
+
+  // save frames to file for fixed interval
+  if (toggle_export && s->currentTime >= 0)
   {
     if (drive_count == COUNT_BEFORE_SAVE)
     {
-      drive_count=0;
+      drive_count=1;
 
       glReadPixels(0, 0, IMG_WIDTH, IMG_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)imgdata_ptr);
 
@@ -724,23 +744,6 @@ static void ReOneStep(double deltaTimeIncrement)
       drive_count++;
     }
   }
-
-	int i;
-	tRobotItf *robot;
-	tSituation *s = ReInfo->s;
-
-	if ((ReInfo->_displayMode != RM_DISP_MODE_NONE) && (ReInfo->_displayMode != RM_DISP_MODE_CONSOLE)) {
-		if (floor(s->currentTime) == -2.0) {
-			ReRaceBigMsgSet("Ready", 1.0);
-		} else if (floor(s->currentTime) == -1.0) {
-			ReRaceBigMsgSet("Set", 1.0);
-		} else if (floor(s->currentTime) == 0.0) {
-			ReRaceBigMsgSet("Go", 1.0);
-		}
-	}
-
-	ReInfo->_reCurTime += deltaTimeIncrement * ReInfo->_reTimeMult; /* "Real" time */
-	s->currentTime += deltaTimeIncrement; /* Simulated time */
 
 	if (s->currentTime < 0) {
 		/* no simu yet */
