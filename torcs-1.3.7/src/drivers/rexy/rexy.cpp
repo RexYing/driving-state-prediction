@@ -187,11 +187,14 @@ double min_speed = 15 / 3.6;
 double keepLR=0.0;   // for three-lane
 
 static double lane_offsets[] = {-4.0, 0, 4.0};
-static int curr_offset_idx = 2;
+static int curr_offset_idx = 1;
 
 static int COUNT_BEFORE_CHANGE_ACC = 300;
 static int curr_count_change_acc = 1;
 static double acc = 0.0;
+
+static int count_before_change_lane = 1;
+static int curr_count_change_lane = 1;
 
 static void save(double* vals, int num_vals) {
 
@@ -215,11 +218,12 @@ static void drive(int index, tCarElt* car, tSituation *s)
 { 
     memset(&car->ctrl, 0, sizeof(tCarCtrl));
 
+    std::default_random_engine generator(std::random_device{}());
+
     if (curr_count_change_acc == COUNT_BEFORE_CHANGE_ACC)
     {
       curr_count_change_acc = 1;
       
-      std::default_random_engine generator(std::random_device{}());
       std::normal_distribution<double> distribution(0.1, 0.3);
       acc = distribution(generator);
 
@@ -234,8 +238,40 @@ static void drive(int index, tCarElt* car, tSituation *s)
         acc = -brake_threshold;
       }
     }
-    else {
+    else 
+    {
       curr_count_change_acc++;
+    }
+
+    if (curr_count_change_lane == count_before_change_lane)
+    {
+      curr_count_change_lane = 1;
+
+      std::poisson_distribution<int> change_lane_event_dist(1000);
+      count_before_change_lane = change_lane_event_dist(generator);
+
+      if (curr_offset_idx == 0 || curr_offset_idx == 2)
+      {
+        curr_offset_idx = 1;
+      }
+      else
+      {
+        std::bernoulli_distribution bdist(0.5);
+        if (bdist(generator))
+        {
+          curr_offset_idx = 0;
+        }
+        else
+        {
+          curr_offset_idx = 2;
+        }
+      }
+      printf("offset %d;     count %d \n", curr_offset_idx, count_before_change_lane);
+
+    }
+    else
+    {
+      curr_count_change_lane++;
     }
 
     if (isStuck(car)) {
@@ -277,7 +313,6 @@ static void drive(int index, tCarElt* car, tSituation *s)
           car->ctrl.accelCmd = 0.0;
           car->ctrl.brakeCmd = acc;
         }
-        printf("acc %f\n", car->ctrl.accelCmd);
     }    
 
     
