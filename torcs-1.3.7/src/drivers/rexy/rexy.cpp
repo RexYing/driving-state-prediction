@@ -22,6 +22,7 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <random>
 #include <stdio.h>
 #include <stdlib.h> 
 #include <string>
@@ -180,9 +181,17 @@ bool isStuck(tCarElt* car)
 
 /* Drive during race. */
 
-double desired_speed=60/3.6;
+double max_speed=60 / 3.6;
+double min_speed = 15 / 3.6;
 //double keepLR=-2.0;   // for two-lane
 double keepLR=0.0;   // for three-lane
+
+static double lane_offsets[] = {-4.0, 0, 4.0};
+static int curr_offset_idx = 2;
+
+static int COUNT_BEFORE_CHANGE_ACC = 300;
+static int curr_count_change_acc = 1;
+static double acc = 0.0;
 
 static void save(double* vals, int num_vals) {
 
@@ -206,6 +215,29 @@ static void drive(int index, tCarElt* car, tSituation *s)
 { 
     memset(&car->ctrl, 0, sizeof(tCarCtrl));
 
+    if (curr_count_change_acc == COUNT_BEFORE_CHANGE_ACC)
+    {
+      curr_count_change_acc = 1;
+      
+      std::default_random_engine generator(std::random_device{}());
+      std::normal_distribution<double> distribution(0.1, 0.3);
+      acc = distribution(generator);
+
+      double acc_threshold = 0.7;
+      double brake_threshold = 0.5;
+      if (acc > acc_threshold) 
+      {
+        acc = acc_threshold;
+      }
+      if (acc < -brake_threshold)
+      {
+        acc = -brake_threshold;
+      }
+    }
+    else {
+      curr_count_change_acc++;
+    }
+
     if (isStuck(car)) {
         float angle = -RtTrackSideTgAngleL(&(car->_trkPos)) + car->_yaw;
         NORM_PI_PI(angle); // put the angle back in the range from -PI to PI
@@ -221,20 +253,31 @@ static void drive(int index, tCarElt* car, tSituation *s)
 
         angle = RtTrackSideTgAngleL(&(car->_trkPos)) - car->_yaw;
         NORM_PI_PI(angle); // put the angle back in the range from -PI to PI
-        angle -= SC*(car->_trkPos.toMiddle+keepLR)/car->_trkPos.seg->width;
+        angle -= SC*(car->_trkPos.toMiddle + lane_offsets[curr_offset_idx])/car->_trkPos.seg->width;
 
         // set up the values to return
         car->ctrl.steer = angle / car->_steerLock;
         car->ctrl.gear = getGear(car);
 
-        if (car->_speed_x>desired_speed) {
+        if (car->_speed_x>max_speed) {
            car->ctrl.brakeCmd=0.5;
            car->ctrl.accelCmd=0.0;
         }
-        else if  (car->_speed_x<desired_speed) {
+        else if  (car->_speed_x<min_speed) {
            car->ctrl.accelCmd=0.5;
            car->ctrl.brakeCmd=0.0;
         }
+        else if (acc > 0)
+        {
+          car->ctrl.accelCmd = acc;
+          car->ctrl.brakeCmd = 0.0;
+        }
+        else
+        {
+          car->ctrl.accelCmd = 0.0;
+          car->ctrl.brakeCmd = acc;
+        }
+        printf("acc %f\n", car->ctrl.accelCmd);
     }    
 
     
